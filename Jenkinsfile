@@ -44,10 +44,10 @@ pipeline {
                 echo "Deploying to the VM..."
                 
                 // 1. Deploy Frontend to NGINX
-                // (Assuming user jenkins has permissions to write to /var/www/html or uses sudo)
-                // Vite builds to the "dist" directory by default
-                sh 'sudo cp -r frontend/dist/* /var/www/html/'
-                sh 'sudo systemctl reload nginx'
+                // Note: Jenkins user needs write access to /var/www/html 
+                // Nginx serves static files dynamically, so no reload is needed.
+                sh 'rm -rf /var/www/html/*'
+                sh 'cp -r frontend/dist/* /var/www/html/'
 
                 // 2. Deploy Backend using PM2
                 // We cd into the backend directory so that .env and modules resolve correctly.
