@@ -13,8 +13,8 @@ function App() {
     setRepoData(null);
     
     try {
-      // Assuming backend is running on 5000 if not proxying
-      const response = await fetch('http://localhost:5000/api/analyze', {
+      // Nginx on the VM will proxy calls to /api to the PM2 backend
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ repoUrl: url }),
