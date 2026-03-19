@@ -102,12 +102,16 @@ pipeline {
                 sh '''#!/usr/bin/env bash
                 set -euo pipefail
 
-                cat > "$BACKEND_DEPLOY_DIR/.env" <<EOF
-HOST=$BACKEND_HOST
-PORT=$BACKEND_PORT
-EOF
+                ENV_FILE="$BACKEND_DEPLOY_DIR/.env"
 
-                chmod 600 "$BACKEND_DEPLOY_DIR/.env"
+                # Create .env if it doesn't exist
+                touch "$ENV_FILE"
+
+                # Only add HOST and PORT if they are not already in the file
+                grep -q '^HOST=' "$ENV_FILE" || echo "HOST=$BACKEND_HOST" >> "$ENV_FILE"
+                grep -q '^PORT=' "$ENV_FILE" || echo "PORT=$BACKEND_PORT" >> "$ENV_FILE"
+
+                chmod 600 "$ENV_FILE"
                 '''
             }
         }
