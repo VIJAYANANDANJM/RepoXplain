@@ -8,8 +8,7 @@ pipeline {
                 checkout scm
                 echo "Source code checkout complete."
             }
-        }
-        
+        } 
         stage('Test Pipeline Connection') {
             steps {
                 // A simple test to verify Jenkins is correctly running on the VM
