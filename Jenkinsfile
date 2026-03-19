@@ -126,6 +126,7 @@ EOF
                 fi
 
                 pkill -f '^repoxplain-backend' || true
+                pkill -f 'node server.js' || true
 
                 if command -v lsof >/dev/null 2>&1; then
                     PORT_PID="$(lsof -ti tcp:"$BACKEND_PORT" || true)"
@@ -145,7 +146,8 @@ EOF
                 export PORT="$BACKEND_PORT"
                 export JENKINS_NODE_COOKIE=dontKillMe
 
-                nohup bash -lc 'exec -a repoxplain-backend node server.js' >> "$BACKEND_LOG_FILE" 2>&1 &
+                : > "$BACKEND_LOG_FILE"
+                nohup env HOST="$BACKEND_HOST" PORT="$BACKEND_PORT" node server.js >> "$BACKEND_LOG_FILE" 2>&1 &
                 echo $! > "$BACKEND_PID_FILE"
                 '''
             }
@@ -166,6 +168,19 @@ EOF
                 done
 
                 echo "Backend health check failed."
+                if [[ -f "$BACKEND_LOG_FILE" ]]; then
+                    echo "===== Backend log ====="
+                    tail -n 100 "$BACKEND_LOG_FILE" || true
+                fi
+
+                if [[ -f "$BACKEND_PID_FILE" ]]; then
+                    echo "===== Backend PID ====="
+                    cat "$BACKEND_PID_FILE" || true
+                fi
+
+                echo "===== Process snapshot ====="
+                ps -ef | grep node | grep -v grep || true
+
                 exit 1
                 '''
             }
