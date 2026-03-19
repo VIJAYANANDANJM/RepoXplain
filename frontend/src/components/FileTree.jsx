@@ -1,22 +1,49 @@
 import React, { useState } from 'react';
 
-const FileTreeNode = ({ node }) => {
+const FileTreeNode = ({ node, onFileSelect, searchTerm }) => {
   const [isOpen, setIsOpen] = useState(false);
   const isFolder = node.type === 'tree';
 
+  // Search filtering
+  const matchesSearch = !searchTerm ||
+    node.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (node.path && node.path.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  const hasMatchingChildren = (n) => {
+    if (!n.children) return false;
+    return n.children.some(child =>
+      child.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (child.path && child.path.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      hasMatchingChildren(child)
+    );
+  };
+
+  if (searchTerm && !matchesSearch && !hasMatchingChildren(node)) return null;
+
+  // Auto-expand folders if searching
+  const shouldBeOpen = searchTerm ? true : isOpen;
+
+  const handleClick = () => {
+    if (isFolder) {
+      setIsOpen(!isOpen);
+    } else if (onFileSelect) {
+      onFileSelect(node);
+    }
+  };
+
   return (
     <div className="tree-node">
-      <div className="tree-node-item" onClick={() => isFolder && setIsOpen(!isOpen)}>
+      <div className="tree-node-item" onClick={handleClick}>
         <span className={isFolder ? 'icon-folder' : 'icon-file'}>
-          {isFolder ? (isOpen ? '📂' : '📁') : '📄'}
+          {isFolder ? (shouldBeOpen ? '📂' : '📁') : '📄'}
         </span>
         <span>{node.name}</span>
       </div>
-      
-      {isFolder && isOpen && node.children && (
+
+      {isFolder && shouldBeOpen && node.children && (
         <div style={{ marginLeft: '0.5rem' }}>
           {node.children.map((child, idx) => (
-            <FileTreeNode key={idx} node={child} />
+            <FileTreeNode key={idx} node={child} onFileSelect={onFileSelect} searchTerm={searchTerm} />
           ))}
         </div>
       )}
@@ -24,20 +51,19 @@ const FileTreeNode = ({ node }) => {
   );
 };
 
-const FileTree = ({ data }) => {
-  // Convert flat github tree to nested structure
+const FileTree = ({ data, onFileSelect, searchTerm }) => {
   const buildTree = (paths) => {
     const root = { name: 'root', type: 'tree', children: [] };
-    
+
     paths.forEach(item => {
       const parts = item.path.split('/');
       let current = root;
-      
+
       parts.forEach((part, index) => {
         let existingPath = current.children?.find(c => c.name === part);
         if (!existingPath) {
-          existingPath = { 
-            name: part, 
+          existingPath = {
+            name: part,
             type: index === parts.length - 1 ? item.type : 'tree',
             path: item.path,
             ...(index !== parts.length - 1 ? { children: [] } : {})
@@ -48,8 +74,7 @@ const FileTree = ({ data }) => {
         current = existingPath;
       });
     });
-    
-    // Sort logic: Folders first, then files
+
     const sortNodes = (node) => {
       if (node.children) {
         node.children.sort((a, b) => {
@@ -70,13 +95,13 @@ const FileTree = ({ data }) => {
     <div className="results-container">
       <div className="results-header">
         <h2 className="repo-title">
-           {data.owner} / <span style={{ color: 'var(--accent)' }}>{data.repo}</span>
-           <span className="repo-branch">{data.defaultBranch}</span>
+          📦 {data.owner} / <span style={{ color: 'var(--accent)' }}>{data.repo}</span>
+          <span className="repo-branch">{data.defaultBranch}</span>
         </h2>
       </div>
       <div className="tree-root">
         {nestedTree.map((node, idx) => (
-          <FileTreeNode key={idx} node={node} />
+          <FileTreeNode key={idx} node={node} onFileSelect={onFileSelect} searchTerm={searchTerm} />
         ))}
       </div>
     </div>
