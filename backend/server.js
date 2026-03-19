@@ -16,9 +16,9 @@ const githubHeaders = {
         : {})
 };
 
-// Initialize Gemini AI
+// Initialize Gemini AI (1.5-flash has the most generous free tier — 1500 req/day)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
