@@ -1,78 +1,180 @@
 pipeline {
     agent any
 
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        FRONTEND_DIR = 'frontend'
+        BACKEND_DIR = 'backend'
+        FRONTEND_DEPLOY_DIR = '/var/www/repoxplain/frontend'
+        BACKEND_DEPLOY_DIR = '/opt/repoxplain/backend'
+        BACKEND_HOST = '127.0.0.1'
+        BACKEND_PORT = '5000'
+        BACKEND_PID_FILE = '/opt/repoxplain/backend/repoxplain.pid'
+        BACKEND_LOG_DIR = '/opt/repoxplain/backend/logs'
+        BACKEND_LOG_FILE = '/opt/repoxplain/backend/logs/server.log'
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                // Jenkins will automatically checkout the code if configured via SCM (e.g. GitHub Webhooks)
                 checkout scm
-                echo "Source code checkout complete."
-            }
-        } 
-        stage('Test Pipeline Connection') {
-            steps {
-                // A simple test to verify Jenkins is correctly running on the VM
-                echo "Jenkins pipeline is successfully connected and running on the VM!"
-                sh 'echo "Current working directory is \$(pwd)"'
-                sh 'echo "Current user is \$(whoami)"'
+                echo 'Source code checkout complete.'
             }
         }
 
-        stage('Testing Environment') {
+        stage('Install Dependencies') {
             steps {
-                // Add your testing steps here (e.g., unit tests, linting)
-                echo "Running application tests..."
-                
-                // Examples depend on your tech stack: 
-                // sh 'npm test'       // For Node.js
-                // sh 'pytest'         // For Python
-                // sh 'mvn test'       // For Java/Maven
-                // sh 'go test ./...'  // For Go
+                sh '''#!/usr/bin/env bash
+                set -euo pipefail
+                cd "$FRONTEND_DIR"
+                npm ci --no-audit --no-fund
+                '''
+
+                sh '''#!/usr/bin/env bash
+                set -euo pipefail
+                cd "$BACKEND_DIR"
+                npm ci --omit=dev --no-audit --no-fund
+                '''
             }
         }
 
-        stage('Build') {
+        stage('Build Frontend') {
             steps {
-                echo "Building the frontend application..."
-                // Using cd and reducing npm bloat (--no-audit) prevents small VMs from running Out of Memory
-                sh 'cd frontend && npm install --no-audit --no-fund --loglevel=error'
-                sh 'cd frontend && npm run build'
+                sh '''#!/usr/bin/env bash
+                set -euo pipefail
+                cd "$FRONTEND_DIR"
+                npm run build
+                '''
             }
         }
 
-        stage('Deploy to VM (Nginx + Native Node)') {
+        stage('Validate Backend') {
             steps {
-                echo "Deploying to the VM natively..."
-                
-                // 1. Deploy Frontend efficiently to NGINX (Port 80)
-                sh 'rm -rf /var/www/html/*'
-                sh 'cp -r frontend/dist/* /var/www/html/'
+                sh '''#!/usr/bin/env bash
+                set -euo pipefail
+                node --check "$BACKEND_DIR/server.js"
+                '''
+            }
+        }
 
-                // 2. Deploy Backend completely bypassing PM2 (Port 5000)
-                sh 'cd backend && npm install --no-audit --no-fund --loglevel=error'
-                
-                sh '''
-                # Safely kill the old backend process operating on port 5000
-                pkill -f 'node server.js' || echo "Starting fresh..."
-                
-                # Detach the Node process from Jenkins natively in the background
+        stage('Deploy Frontend') {
+            steps {
+                sh '''#!/usr/bin/env bash
+                set -euo pipefail
+
+                CURRENT_USER="$(id -un)"
+                CURRENT_GROUP="$(id -gn)"
+
+                sudo mkdir -p "$FRONTEND_DEPLOY_DIR"
+                sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$FRONTEND_DEPLOY_DIR"
+
+                find "$FRONTEND_DEPLOY_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+                cp -r "$FRONTEND_DIR/dist"/. "$FRONTEND_DEPLOY_DIR"/
+                chmod -R a+rX "$FRONTEND_DEPLOY_DIR"
+                '''
+            }
+        }
+
+        stage('Deploy Backend') {
+            steps {
+                sh '''#!/usr/bin/env bash
+                set -euo pipefail
+
+                CURRENT_USER="$(id -un)"
+                CURRENT_GROUP="$(id -gn)"
+
+                sudo mkdir -p "$BACKEND_DEPLOY_DIR" "$BACKEND_LOG_DIR"
+                sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$BACKEND_DEPLOY_DIR"
+
+                find "$BACKEND_DEPLOY_DIR" -mindepth 1 -maxdepth 1 \
+                    ! -name '.env' \
+                    ! -name 'logs' \
+                    ! -name 'repoxplain.pid' \
+                    -exec rm -rf {} +
+
+                cp "$BACKEND_DIR/package.json" "$BACKEND_DEPLOY_DIR/package.json"
+                cp "$BACKEND_DIR/package-lock.json" "$BACKEND_DEPLOY_DIR/package-lock.json"
+                cp "$BACKEND_DIR/server.js" "$BACKEND_DEPLOY_DIR/server.js"
+
+                cd "$BACKEND_DEPLOY_DIR"
+                npm ci --omit=dev --no-audit --no-fund
+                '''
+            }
+        }
+
+        stage('Restart Backend') {
+            steps {
+                sh '''#!/usr/bin/env bash
+                set -euo pipefail
+
+                if [[ -f "$BACKEND_PID_FILE" ]]; then
+                    EXISTING_PID="$(cat "$BACKEND_PID_FILE")"
+                    if kill -0 "$EXISTING_PID" 2>/dev/null; then
+                        kill "$EXISTING_PID"
+                        sleep 3
+                    fi
+                fi
+
+                pkill -f '^repoxplain-backend' || true
+
+                if command -v lsof >/dev/null 2>&1; then
+                    PORT_PID="$(lsof -ti tcp:"$BACKEND_PORT" || true)"
+                    if [[ -n "$PORT_PID" ]]; then
+                        kill "$PORT_PID" || true
+                        sleep 3
+                    fi
+                elif command -v fuser >/dev/null 2>&1; then
+                    fuser -k "${BACKEND_PORT}/tcp" || true
+                    sleep 3
+                fi
+
+                rm -f "$BACKEND_PID_FILE"
+
+                cd "$BACKEND_DEPLOY_DIR"
+                export HOST="$BACKEND_HOST"
+                export PORT="$BACKEND_PORT"
                 export JENKINS_NODE_COOKIE=dontKillMe
-                cd backend && nohup node server.js > api.log 2>&1 &
+
+                nohup bash -lc 'exec -a repoxplain-backend node server.js' >> "$BACKEND_LOG_FILE" 2>&1 &
+                echo $! > "$BACKEND_PID_FILE"
+                '''
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                sh '''#!/usr/bin/env bash
+                set -euo pipefail
+
+                for attempt in {1..10}; do
+                    if curl --silent --fail "http://$BACKEND_HOST:$BACKEND_PORT/api/health" > /dev/null; then
+                        echo "Backend health check passed."
+                        exit 0
+                    fi
+
+                    sleep 3
+                done
+
+                echo "Backend health check failed."
+                exit 1
                 '''
             }
         }
     }
 
     post {
-        always {
-            echo "Cleaning up workspace..."
-            cleanWs() // Cleans the workspace after execution
-        }
         success {
-            echo "✅ Pipeline executed successfully! The deployment is complete."
+            echo 'Pipeline executed successfully. Frontend and backend are live on the VM.'
         }
         failure {
-            echo "❌ Pipeline failed! Please check the Jenkins logs."
+            echo 'Pipeline failed. Check the Jenkins stage logs for the exact step.'
+        }
+        always {
+            cleanWs(cleanWhenNotBuilt: false, deleteDirs: true, disableDeferredWipeout: true)
         }
     }
 }

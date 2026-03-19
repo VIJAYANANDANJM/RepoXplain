@@ -13,7 +13,7 @@ function App() {
     setRepoData(null);
     
     try {
-      // Nginx on the VM will proxy calls to /api to the PM2 backend
+      // Nginx on the VM proxies /api to the backend running on the same machine
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
