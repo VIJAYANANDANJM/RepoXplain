@@ -66,12 +66,7 @@ pipeline {
                 sh '''#!/usr/bin/env bash
                 set -euo pipefail
 
-                CURRENT_USER="$(id -un)"
-                CURRENT_GROUP="$(id -gn)"
-
-                sudo mkdir -p "$FRONTEND_DEPLOY_DIR"
-                sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$FRONTEND_DEPLOY_DIR"
-
+                mkdir -p "$FRONTEND_DEPLOY_DIR"
                 find "$FRONTEND_DEPLOY_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
                 cp -r "$FRONTEND_DIR/dist"/. "$FRONTEND_DEPLOY_DIR"/
                 chmod -R a+rX "$FRONTEND_DEPLOY_DIR"
@@ -84,11 +79,7 @@ pipeline {
                 sh '''#!/usr/bin/env bash
                 set -euo pipefail
 
-                CURRENT_USER="$(id -un)"
-                CURRENT_GROUP="$(id -gn)"
-
-                sudo mkdir -p "$BACKEND_DEPLOY_DIR" "$BACKEND_LOG_DIR"
-                sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$BACKEND_DEPLOY_DIR"
+                mkdir -p "$BACKEND_DEPLOY_DIR" "$BACKEND_LOG_DIR"
 
                 find "$BACKEND_DEPLOY_DIR" -mindepth 1 -maxdepth 1 \
                     ! -name '.env' \
@@ -102,6 +93,21 @@ pipeline {
 
                 cd "$BACKEND_DEPLOY_DIR"
                 npm ci --omit=dev --no-audit --no-fund
+                '''
+            }
+        }
+
+        stage('Create Backend Env') {
+            steps {
+                sh '''#!/usr/bin/env bash
+                set -euo pipefail
+
+                cat > "$BACKEND_DEPLOY_DIR/.env" <<EOF
+HOST=$BACKEND_HOST
+PORT=$BACKEND_PORT
+EOF
+
+                chmod 600 "$BACKEND_DEPLOY_DIR/.env"
                 '''
             }
         }

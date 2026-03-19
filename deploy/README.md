@@ -10,11 +10,18 @@ This project is set up for a single Linux VM where:
 
 1. Copy [repoxplain.conf](./nginx/repoxplain.conf) to `/etc/nginx/sites-available/repoxplain`
 2. Enable the site and reload Nginx
-3. Create `/opt/repoxplain/backend/.env` from [backend/.env.example](../backend/.env.example)
-4. Make sure the Jenkins user can run `sudo` for the deploy directories used in `Jenkinsfile`
+3. Create the deploy folders once and make Jenkins the owner:
+
+```bash
+sudo mkdir -p /var/www/repoxplain/frontend
+sudo mkdir -p /opt/repoxplain/backend/logs
+sudo chown -R jenkins:jenkins /var/www/repoxplain
+sudo chown -R jenkins:jenkins /opt/repoxplain
+```
 
 ## Runtime notes
 
 - The backend is started from `/opt/repoxplain/backend`, not from the Jenkins workspace
-- The pipeline preserves `/opt/repoxplain/backend/.env` between deployments
+- The pipeline recreates `/opt/repoxplain/backend/.env` on each deployment with only `HOST` and `PORT`
+- `GITHUB_TOKEN` is optional and can be added manually later if you want higher GitHub API rate limits
 - The health check endpoint is `http://127.0.0.1:5000/api/health`
