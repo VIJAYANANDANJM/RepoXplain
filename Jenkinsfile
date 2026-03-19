@@ -40,21 +40,21 @@ pipeline {
             }
         }
 
-        stage('Deploy to VM (Nginx + PM2)') {
+        stage('Deploy to VM (Native Node)') {
             steps {
-                echo "Deploying to the VM..."
+                echo "Deploying the Unified Node.js Server natively..."
                 
-                // 1. Deploy Frontend to NGINX
-                // Note: Jenkins user needs write access to /var/www/html 
-                // Nginx serves static files dynamically, so no reload is needed.
-                sh 'rm -rf /var/www/html/*'
-                sh 'cp -r frontend/dist/* /var/www/html/'
-
-                // 2. Deploy Backend using PM2
-                // We cd into the backend directory so that .env and modules resolve correctly.
-                sh 'cd backend && npm install --no-audit --no-fund --loglevel=error'
-                sh 'cd backend && pm2 restart repo-backend || pm2 start server.js --name repo-backend'
-                sh 'pm2 save'
+                sh '''
+                cd backend
+                npm install --no-audit --no-fund --loglevel=error
+                
+                # 1. Gracefully securely silence and kill old node backend instances (if any)
+                pkill -f 'node server.js' || echo "No previous backend found to kill."
+                
+                # 2. Start the new backend heavily detached from Jenkins terminal (No Hang Up)
+                export JENKINS_NODE_COOKIE=dontKillMe
+                nohup node server.js > server.log 2>&1 &
+                '''
             }
         }
     }
