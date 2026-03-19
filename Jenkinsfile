@@ -40,20 +40,24 @@ pipeline {
             }
         }
 
-        stage('Deploy to VM (Native Node)') {
+        stage('Deploy to VM (Nginx + Native Node)') {
             steps {
-                echo "Deploying the Unified Node.js Server natively..."
+                echo "Deploying to the VM natively..."
+                
+                // 1. Deploy Frontend efficiently to NGINX (Port 80)
+                sh 'rm -rf /var/www/html/*'
+                sh 'cp -r frontend/dist/* /var/www/html/'
+
+                // 2. Deploy Backend completely bypassing PM2 (Port 5000)
+                sh 'cd backend && npm install --no-audit --no-fund --loglevel=error'
                 
                 sh '''
-                cd backend
-                npm install --no-audit --no-fund --loglevel=error
+                # Safely kill the old backend process operating on port 5000
+                pkill -f 'node server.js' || echo "Starting fresh..."
                 
-                # 1. Gracefully securely silence and kill old node backend instances (if any)
-                pkill -f 'node server.js' || echo "No previous backend found to kill."
-                
-                # 2. Start the new backend heavily detached from Jenkins terminal (No Hang Up)
+                # Detach the Node process from Jenkins natively in the background
                 export JENKINS_NODE_COOKIE=dontKillMe
-                nohup node server.js > server.log 2>&1 &
+                cd backend && nohup node server.js > api.log 2>&1 &
                 '''
             }
         }
