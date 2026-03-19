@@ -34,25 +34,27 @@ pipeline {
 
         stage('Build') {
             steps {
-                // Build your project artifacts or Docker images
-                echo "Building the application..."
-                
-                // Examples:
-                // sh 'npm run build'
-                // sh 'docker build -t my-app:latest .'
+                echo "Building the frontend application..."
+                sh 'npm install --prefix frontend'
+                sh 'npm run build --prefix frontend'
             }
         }
 
-        stage('Deploy to VM') {
+        stage('Deploy to VM (Nginx + PM2)') {
             steps {
-                // The actual deployment steps
                 echo "Deploying to the VM..."
                 
-                // Since Jenkins is ON the VM, you can run commands directly, or use Docker
-                // Examples:
-                // sh 'docker run -d -p 80:80 my-app:latest'
-                // sh 'systemctl restart my-service'
-                // sh 'cp -r build/* /var/www/html/'
+                // 1. Deploy Frontend to NGINX
+                // (Assuming user jenkins has permissions to write to /var/www/html or uses sudo)
+                // Vite builds to the "dist" directory by default
+                sh 'sudo cp -r frontend/dist/* /var/www/html/'
+                sh 'sudo systemctl reload nginx'
+
+                // 2. Deploy Backend using PM2
+                // We cd into the backend directory so that .env and modules resolve correctly.
+                sh 'cd backend && npm install'
+                sh 'cd backend && pm2 restart repo-backend || pm2 start server.js --name repo-backend'
+                sh 'pm2 save'
             }
         }
     }
