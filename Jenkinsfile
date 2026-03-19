@@ -34,8 +34,9 @@ pipeline {
         stage('Build') {
             steps {
                 echo "Building the frontend application..."
-                sh 'npm install --prefix frontend'
-                sh 'npm run build --prefix frontend'
+                // Using cd and reducing npm bloat (--no-audit) prevents small VMs from running Out of Memory
+                sh 'cd frontend && npm install --no-audit --no-fund --loglevel=error'
+                sh 'cd frontend && npm run build'
             }
         }
 
@@ -51,7 +52,7 @@ pipeline {
 
                 // 2. Deploy Backend using PM2
                 // We cd into the backend directory so that .env and modules resolve correctly.
-                sh 'cd backend && npm install'
+                sh 'cd backend && npm install --no-audit --no-fund --loglevel=error'
                 sh 'cd backend && pm2 restart repo-backend || pm2 start server.js --name repo-backend'
                 sh 'pm2 save'
             }
