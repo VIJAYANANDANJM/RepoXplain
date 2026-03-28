@@ -1,10 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const path = require('path');
 const dotenv = require('dotenv');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-dotenv.config();
+// Load .env from the same directory as this script (not CWD)
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const HOST = process.env.HOST || '127.0.0.1';
@@ -15,6 +17,11 @@ const githubHeaders = {
         ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
         : {})
 };
+
+// Startup diagnostics
+console.log(`[ENV] GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? '✅ SET (' + process.env.GEMINI_API_KEY.substring(0, 8) + '...)' : '❌ NOT SET'}`);
+console.log(`[ENV] GITHUB_TOKEN: ${process.env.GITHUB_TOKEN ? '✅ SET' : '❌ NOT SET'}`);
+console.log(`[ENV] .env path: ${path.join(__dirname, '.env')}`);
 
 // Initialize Gemini AI (1.5-flash has the most generous free tier — 1500 req/day)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
