@@ -334,6 +334,55 @@ app.post('/api/dependencies', async (req, res) => {
     res.json({ edges, fileCount: sourceFiles.length });
 });
 
+// Chatbot: Ask questions about the repo
+app.post('/api/chat', async (req, res) => {
+    const { question, repoContext, history } = req.body;
+    if (!question) return res.status(400).json({ error: 'question is required.' });
+
+    const contextParts = [];
+    if (repoContext?.owner && repoContext?.repo) contextParts.push(`Repository: ${repoContext.owner}/${repoContext.repo}`);
+    if (repoContext?.description) contextParts.push(`Description: ${repoContext.description}`);
+    if (repoContext?.language) contextParts.push(`Primary Language: ${repoContext.language}`);
+    if (repoContext?.techStack) contextParts.push(`Tech Stack: ${repoContext.techStack.map(t => t.name).join(', ')}`);
+    if (repoContext?.summary) contextParts.push(`Project Summary: ${typeof repoContext.summary === 'string' ? repoContext.summary : JSON.stringify(repoContext.summary)}`);
+    if (repoContext?.fileList) contextParts.push(`Key Files:\n${repoContext.fileList}`);
+
+    const systemPrompt = `You are RepoXplain AI assistant. You help users understand a GitHub repository. Answer concisely and helpfully. Use the repository context provided to give accurate answers. If you don't know something specific, say so honestly.
+
+Repository Context:
+${contextParts.join('\n')}`;
+
+    // Build messages array with history
+    const messages = [{ role: 'system', content: systemPrompt }];
+    if (history && Array.isArray(history)) {
+        history.slice(-6).forEach(msg => {
+            messages.push({ role: msg.role, content: msg.content });
+        });
+    }
+    messages.push({ role: 'user', content: question });
+
+    try {
+        const response = await axios.post(GROQ_API_URL, {
+            model: GROQ_MODEL,
+            messages,
+            temperature: 0.5,
+            max_tokens: 1024,
+        }, {
+            headers: {
+                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 30000
+        });
+
+        const answer = response.data.choices[0].message.content.trim();
+        res.json({ answer });
+    } catch (error) {
+        console.error('Chat Error:', error.message);
+        res.status(500).json({ error: 'Failed to get AI response.' });
+    }
+});
+
 app.listen(PORT, HOST, () => {
     console.log(`RepoXplain Backend server is running on http://${HOST}:${PORT}`);
 });

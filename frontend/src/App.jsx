@@ -8,6 +8,7 @@ import SearchBar from './components/SearchBar';
 import ComplexityScore from './components/ComplexityScore';
 import DependencyGraph from './components/DependencyGraph';
 import ExportReport from './components/ExportReport';
+import Chatbot from './components/Chatbot';
 
 const API_BASE = '/api';
 
@@ -226,6 +227,7 @@ function App() {
           </>
         )}
       </div>
+      <Chatbot repoData={repoData} summary={summary} />
     </div>
   );
 }
