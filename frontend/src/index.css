@@ -389,6 +389,89 @@ p.hero-subtitle {
 @keyframes typing-dot { 0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); } 30% { opacity: 1; transform: scale(1.2); } }
 @keyframes fab-pulse { 0%, 100% { box-shadow: 0 4px 20px var(--accent-glow); } 50% { box-shadow: 0 4px 30px rgba(59, 130, 246, 0.5); } }
 
+/* ─── Commit Timeline ─────────────────────────── */
+.timeline-container {
+  width: 100%;
+  background: var(--panel-bg); backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color); border-radius: var(--radius);
+  padding: 1.5rem; animation: fade-in-up 0.5s ease-out;
+}
+.timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.5rem; }
+.timeline-header h3 { font-size: 1.1rem; color: #fff; font-weight: 600; }
+.timeline-stat { font-size: 0.8rem; color: var(--text-muted); }
+.timeline-chart-wrapper {
+  width: 100%; border-radius: var(--radius-sm);
+  background: rgba(0,0,0,0.2); padding: 0.8rem 0.5rem 0.2rem;
+  overflow: hidden;
+}
+.timeline-svg { width: 100%; height: auto; display: block; }
+.timeline-bar { transition: opacity 0.2s ease; cursor: pointer; }
+.timeline-bar:hover { opacity: 0.8; filter: brightness(1.3); }
+
+/* ─── Repo Compare ────────────────────────────── */
+.compare-container {
+  width: 100%;
+  background: var(--panel-bg); backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color); border-radius: var(--radius);
+  padding: 1.5rem; animation: fade-in-up 0.5s ease-out;
+}
+.compare-inputs {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+}
+.compare-input {
+  flex: 1; min-width: 180px; background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-color); color: var(--text-main);
+  padding: 0.7rem 1rem; border-radius: 10px; font-size: 0.9rem;
+  outline: none; font-family: var(--font-main); transition: border-color 0.2s;
+}
+.compare-input:focus { border-color: var(--accent); }
+.compare-input::placeholder { color: var(--text-muted); }
+.compare-vs {
+  font-weight: 700; color: var(--accent-light); font-size: 0.9rem;
+  background: rgba(59, 130, 246, 0.1); padding: 0.4rem 0.7rem;
+  border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.2);
+  white-space: nowrap;
+}
+.compare-btn {
+  background: linear-gradient(135deg, var(--accent), #2563eb);
+  color: #fff; border: none; border-radius: 10px;
+  padding: 0.7rem 1.5rem; font-size: 0.9rem; font-weight: 600;
+  cursor: pointer; transition: all 0.25s ease; white-space: nowrap;
+  font-family: var(--font-main);
+}
+.compare-btn:hover:not(:disabled) { transform: translateY(-2px); }
+.compare-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.compare-results { margin-top: 1.2rem; }
+.compare-header {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
+  padding-bottom: 0.8rem; margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+.compare-repo-name {
+  font-size: 0.9rem; font-weight: 600; color: var(--accent-light);
+  text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.compare-row {
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.5rem;
+  padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  align-items: center;
+}
+.compare-row:last-child { border-bottom: none; }
+.compare-val {
+  font-size: 0.85rem; color: var(--text-main); text-align: center;
+  padding: 0.3rem 0.5rem; border-radius: 6px;
+  transition: all 0.2s ease;
+}
+.compare-win {
+  color: var(--success) !important; font-weight: 600;
+  background: rgba(34, 197, 94, 0.08);
+}
+.compare-label {
+  font-size: 0.78rem; color: var(--text-muted); text-align: center;
+  white-space: nowrap; font-weight: 500;
+}
+
 /* ─── Chatbot ─────────────────────────────────── */
 .chat-fab {
   position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 200;

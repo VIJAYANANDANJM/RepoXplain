@@ -334,6 +334,53 @@ app.post('/api/dependencies', async (req, res) => {
     res.json({ edges, fileCount: sourceFiles.length });
 });
 
+// Commit Activity Timeline (last 52 weeks)
+app.post('/api/commits', async (req, res) => {
+    const { owner, repo } = req.body;
+    if (!owner || !repo) return res.status(400).json({ error: 'owner and repo are required.' });
+
+    try {
+        const response = await axios.get(
+            `https://api.github.com/repos/${owner}/${repo}/stats/commit_activity`,
+            { headers: githubHeaders }
+        );
+        // GitHub may return 202 while computing stats — data will be empty array
+        const weeks = Array.isArray(response.data) ? response.data : [];
+        const activity = weeks.map(w => ({
+            week: new Date(w.week * 1000).toISOString().split('T')[0],
+            total: w.total,
+            days: w.days,
+        }));
+        res.json({ activity });
+    } catch (error) {
+        console.error('Commits Error:', error.message);
+        res.status(500).json({ error: 'Failed to fetch commit activity.' });
+    }
+});
+
+// Top Contributors
+app.post('/api/contributors', async (req, res) => {
+    const { owner, repo } = req.body;
+    if (!owner || !repo) return res.status(400).json({ error: 'owner and repo are required.' });
+
+    try {
+        const response = await axios.get(
+            `https://api.github.com/repos/${owner}/${repo}/contributors?per_page=10`,
+            { headers: githubHeaders }
+        );
+        const contributors = response.data.map(c => ({
+            login: c.login,
+            avatar: c.avatar_url,
+            contributions: c.contributions,
+            url: c.html_url,
+        }));
+        res.json({ contributors });
+    } catch (error) {
+        console.error('Contributors Error:', error.message);
+        res.status(500).json({ error: 'Failed to fetch contributors.' });
+    }
+});
+
 // Chatbot: Ask questions about the repo
 app.post('/api/chat', async (req, res) => {
     const { question, repoContext, history } = req.body;
