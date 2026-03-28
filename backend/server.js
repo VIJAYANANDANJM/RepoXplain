@@ -23,9 +23,9 @@ console.log(`[ENV] GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? '✅ SET (' + 
 console.log(`[ENV] GITHUB_TOKEN: ${process.env.GITHUB_TOKEN ? '✅ SET' : '❌ NOT SET'}`);
 console.log(`[ENV] .env path: ${path.join(__dirname, '.env')}`);
 
-// Initialize Gemini AI (1.5-flash has the most generous free tier — 1500 req/day)
+// Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
