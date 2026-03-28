@@ -9,8 +9,6 @@ import ComplexityScore from './components/ComplexityScore';
 import DependencyGraph from './components/DependencyGraph';
 import ExportReport from './components/ExportReport';
 import Chatbot from './components/Chatbot';
-import CommitTimeline from './components/CommitTimeline';
-import RepoCompare from './components/RepoCompare';
 
 const API_BASE = '/api';
 
@@ -37,8 +35,6 @@ function App() {
   const [loadingComplexity, setLoadingComplexity] = useState(false);
   const [depEdges, setDepEdges] = useState(null);
   const [loadingDeps, setLoadingDeps] = useState(false);
-  const [commitActivity, setCommitActivity] = useState(null);
-  const [loadingCommits, setLoadingCommits] = useState(false);
 
   const handleAnalyze = async (url) => {
     setLoading(true);
@@ -65,7 +61,6 @@ function App() {
       fetchSummary(data);
       fetchComplexity(data);
       fetchDependencies(data);
-      fetchCommits(data);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -158,25 +153,10 @@ function App() {
     } catch { /* optional */ } finally { setLoadingDeps(false); }
   };
 
-  const fetchCommits = async (data) => {
-    setLoadingCommits(true);
-    try {
-      const res = await fetch(`${API_BASE}/commits`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner: data.owner, repo: data.repo }),
-      });
-      const result = await res.json();
-      if (res.ok) setCommitActivity(result.activity);
-    } catch { /* optional */ } finally { setLoadingCommits(false); }
-  };
-
   const tabs = [
-    { id: 'summary', label: '🧠 Summary' },
-    { id: 'explorer', label: '📁 Explorer' },
-    { id: 'insights', label: '📊 Insights' },
-    { id: 'activity', label: '📈 Activity' },
-    { id: 'compare', label: '🆚 Compare' },
+    { id: 'summary', label: '🧠 Summary', icon: '' },
+    { id: 'explorer', label: '📁 Explorer', icon: '' },
+    { id: 'insights', label: '📊 Insights', icon: '' },
   ];
 
   return (
@@ -242,20 +222,6 @@ function App() {
                   <ComplexityScore stats={complexity} isLoading={loadingComplexity} />
                   <DependencyGraph edges={depEdges} isLoading={loadingDeps} />
                 </div>
-              </div>
-            )}
-
-            {/* Activity Tab */}
-            {activeTab === 'activity' && (
-              <div className="tab-content">
-                <CommitTimeline activity={commitActivity} isLoading={loadingCommits} />
-              </div>
-            )}
-
-            {/* Compare Tab */}
-            {activeTab === 'compare' && (
-              <div className="tab-content">
-                <RepoCompare />
               </div>
             )}
           </>
