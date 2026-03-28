@@ -1,5 +1,18 @@
 import React from 'react';
 
+// Safely convert any value to a renderable string
+const toText = (val) => {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (Array.isArray(val)) return val.map(toText).join(', ');
+  if (typeof val === 'object') {
+    return Object.entries(val)
+      .map(([k, v]) => `${k}: ${toText(v)}`)
+      .join('\n');
+  }
+  return String(val);
+};
+
 const ProjectSummary = ({ summary, isLoading }) => {
   if (isLoading) {
     return (
@@ -40,7 +53,7 @@ const ProjectSummary = ({ summary, isLoading }) => {
       {summary.overview && (
         <div className="summary-section">
           <h3>📋 Overview</h3>
-          <p>{summary.overview}</p>
+          <p>{toText(summary.overview)}</p>
         </div>
       )}
 
@@ -48,7 +61,7 @@ const ProjectSummary = ({ summary, isLoading }) => {
       {summary.architecture && (
         <div className="summary-section">
           <h3>🏗️ Architecture</h3>
-          <p>{summary.architecture}</p>
+          <p style={{ whiteSpace: 'pre-wrap' }}>{toText(summary.architecture)}</p>
         </div>
       )}
 
@@ -56,7 +69,7 @@ const ProjectSummary = ({ summary, isLoading }) => {
       {summary.howToRun && (
         <div className="summary-section">
           <h3>🚀 How to Run</h3>
-          <p style={{ whiteSpace: 'pre-wrap' }}>{summary.howToRun}</p>
+          <p style={{ whiteSpace: 'pre-wrap' }}>{toText(summary.howToRun)}</p>
         </div>
       )}
 
@@ -66,7 +79,7 @@ const ProjectSummary = ({ summary, isLoading }) => {
           <h3>✨ Highlights</h3>
           <ul>
             {summary.highlights.map((h, i) => (
-              <li key={i}>{h}</li>
+              <li key={i}>{toText(h)}</li>
             ))}
           </ul>
         </div>
