@@ -99,20 +99,13 @@ pipeline {
 
         stage('Create Backend Env') {
             steps {
-                sh '''#!/usr/bin/env bash
-                set -euo pipefail
-
-                ENV_FILE="$BACKEND_DEPLOY_DIR/.env"
-
-                # Create .env if it doesn't exist
-                touch "$ENV_FILE"
-
-                # Only add HOST and PORT if they are not already in the file
-                grep -q '^HOST=' "$ENV_FILE" || echo "HOST=$BACKEND_HOST" >> "$ENV_FILE"
-                grep -q '^PORT=' "$ENV_FILE" || echo "PORT=$BACKEND_PORT" >> "$ENV_FILE"
-
-                chmod 600 "$ENV_FILE"
-                '''
+                withCredentials([file(credentialsId: 'repoXplain.env', variable: 'ENV_SECRET')]) {
+                    sh '''#!/usr/bin/env bash
+                    set -euo pipefail
+                    cp "$ENV_SECRET" "$BACKEND_DEPLOY_DIR/.env"
+                    chmod 600 "$BACKEND_DEPLOY_DIR/.env"
+                    '''
+                }
             }
         }
 
