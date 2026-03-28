@@ -3,7 +3,6 @@ const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
 const dotenv = require('dotenv');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Load .env from the same directory as this script (not CWD)
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -19,13 +18,34 @@ const githubHeaders = {
 };
 
 // Startup diagnostics
-console.log(`[ENV] GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? '✅ SET (' + process.env.GEMINI_API_KEY.substring(0, 8) + '...)' : '❌ NOT SET'}`);
+console.log(`[ENV] GROQ_API_KEY: ${process.env.GROQ_API_KEY ? '✅ SET (' + process.env.GROQ_API_KEY.substring(0, 8) + '...)' : '❌ NOT SET'}`);
 console.log(`[ENV] GITHUB_TOKEN: ${process.env.GITHUB_TOKEN ? '✅ SET' : '❌ NOT SET'}`);
 console.log(`[ENV] .env path: ${path.join(__dirname, '.env')}`);
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+// ─── Groq AI Helper (OpenAI-compatible REST API) ────────────────────
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = 'llama-3.1-8b-instant'; // Fast, free, 30 req/min
+
+const callAI = async (systemPrompt, userPrompt) => {
+    const response = await axios.post(GROQ_API_URL, {
+        model: GROQ_MODEL,
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 2048,
+        response_format: { type: 'json_object' }
+    }, {
+        headers: {
+            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        timeout: 30000
+    });
+
+    return response.data.choices[0].message.content.trim();
+};
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -80,7 +100,6 @@ const detectTechStack = (tree) => {
         { files: ['.eslintrc.js', '.eslintrc.json', 'eslint.config.js'], name: 'ESLint', icon: '📏' },
     ];
 
-    // Check for React by looking at any .jsx or .tsx files
     const hasReact = tree.some(f => f.path.endsWith('.jsx') || f.path.endsWith('.tsx'));
     if (hasReact) techs.push({ name: 'React', icon: '⚛️' });
 
@@ -135,17 +154,17 @@ app.post('/api/analyze', async (req, res) => {
 
 // Phase 2: Fetch file content
 app.post('/api/file-content', async (req, res) => {
-    const { owner, repo, path, branch } = req.body;
-    if (!owner || !repo || !path) return res.status(400).json({ error: 'owner, repo, and path are required.' });
+    const { owner, repo, path: filePath, branch } = req.body;
+    if (!owner || !repo || !filePath) return res.status(400).json({ error: 'owner, repo, and path are required.' });
 
-    const ext = getFileExtension(path);
+    const ext = getFileExtension(filePath);
     if (!SUPPORTED_EXTENSIONS.includes(ext) && ext !== '') {
         return res.status(400).json({ error: `Unsupported file type: ${ext}` });
     }
 
     try {
         const response = await axios.get(
-            `https://api.github.com/repos/${owner}/${repo}/contents/${path}${branch ? `?ref=${branch}` : ''}`,
+            `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}${branch ? `?ref=${branch}` : ''}`,
             { headers: githubHeaders }
         );
 
@@ -167,7 +186,8 @@ app.post('/api/explain', async (req, res) => {
     if (!code || !fileName) return res.status(400).json({ error: 'code and fileName are required.' });
 
     try {
-        const prompt = `You are a senior software engineer. Analyze this file named "${fileName}" and provide a structured explanation in JSON format with these exact keys:
+        const systemPrompt = 'You are a senior software engineer. Always respond with valid JSON only.';
+        const userPrompt = `Analyze this file named "${fileName}" and provide a structured explanation with these exact keys:
 {
   "purpose": "What this file does in 2-3 sentences",
   "keyFunctions": ["list of key functions/classes and what each does"],
@@ -177,18 +197,13 @@ app.post('/api/explain', async (req, res) => {
 
 Here is the code:
 \`\`\`
-${code.substring(0, 15000)}
-\`\`\`
+${code.substring(0, 12000)}
+\`\`\``;
 
-Respond ONLY with valid JSON, no markdown fences.`;
+        const text = await callAI(systemPrompt, userPrompt);
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text().trim();
-
-        // Try to parse the JSON response
         let explanation;
         try {
-            // Strip markdown code fences if Gemini adds them
             const cleaned = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
             explanation = JSON.parse(cleaned);
         } catch {
@@ -203,7 +218,7 @@ Respond ONLY with valid JSON, no markdown fences.`;
         res.json(explanation);
     } catch (error) {
         console.error('AI Explanation Error:', error.message);
-        res.status(500).json({ error: 'Failed to generate AI explanation. Check your GEMINI_API_KEY.' });
+        res.status(500).json({ error: 'Failed to generate AI explanation. Check your GROQ_API_KEY.' });
     }
 });
 
@@ -216,30 +231,28 @@ app.post('/api/summarize', async (req, res) => {
     const fileList = tree
         .filter(f => f.type === 'blob')
         .map(f => f.path)
-        .slice(0, 200)
+        .slice(0, 150)
         .join('\n');
 
     try {
-        const prompt = `You are a senior developer analyzing a GitHub repository called "${owner}/${repo}".
+        const systemPrompt = 'You are a senior developer. Always respond with valid JSON only.';
+        const userPrompt = `Analyze a GitHub repository called "${owner}/${repo}".
 ${description ? `Description: ${description}` : ''}
 ${language ? `Primary Language: ${language}` : ''}
 Detected Technologies: ${techStack.map(t => t.name).join(', ')}
 
-Here is the file structure (up to 200 files):
+File structure:
 ${fileList}
 
-Provide a structured summary in JSON with these exact keys:
+Provide a structured summary with these exact keys:
 {
   "overview": "3-4 sentence summary of what this project does",
   "architecture": "Explain the project architecture and how components connect",
   "howToRun": "Step-by-step instructions to run this project locally",
-  "highlights": ["3-5 notable features or interesting aspects of this codebase"]
-}
+  "highlights": ["3-5 notable features or interesting aspects"]
+}`;
 
-Respond ONLY with valid JSON, no markdown fences.`;
-
-        const result = await model.generateContent(prompt);
-        const text = result.response.text().trim();
+        const text = await callAI(systemPrompt, userPrompt);
 
         let summary;
         try {
@@ -264,15 +277,12 @@ app.post('/api/complexity', async (req, res) => {
     const files = tree.filter(f => f.type === 'blob');
     const totalFiles = files.length;
     const totalSize = files.reduce((sum, f) => sum + (f.size || 0), 0);
-    const estimatedLines = Math.round(totalSize / 40); // rough estimate
+    const estimatedLines = Math.round(totalSize / 40);
 
-    // Language breakdown
     const langMap = {};
     files.forEach(f => {
         const ext = getFileExtension(f.path);
-        if (ext) {
-            langMap[ext] = (langMap[ext] || 0) + 1;
-        }
+        if (ext) langMap[ext] = (langMap[ext] || 0) + 1;
     });
 
     const languages = Object.entries(langMap)
@@ -297,7 +307,7 @@ app.post('/api/dependencies', async (req, res) => {
 
     const sourceFiles = tree
         .filter(f => f.type === 'blob' && /\.(js|jsx|ts|tsx|py|java)$/.test(f.path))
-        .slice(0, 30); // Limit to 30 files to avoid rate limits
+        .slice(0, 30);
 
     const edges = [];
 
@@ -309,15 +319,11 @@ app.post('/api/dependencies', async (req, res) => {
             );
             if (response.data.encoding === 'base64') {
                 const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-
-                // Parse import/require statements
                 const importRegex = /(?:import\s+.*?from\s+['"](.+?)['"]|require\s*\(\s*['"](.+?)['"]\s*\))/g;
                 let match;
                 while ((match = importRegex.exec(content)) !== null) {
                     const dep = match[1] || match[2];
-                    if (dep.startsWith('.')) {
-                        edges.push({ source: file.path, target: dep });
-                    }
+                    if (dep.startsWith('.')) edges.push({ source: file.path, target: dep });
                 }
             }
         } catch {
